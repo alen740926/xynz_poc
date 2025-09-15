@@ -1,0 +1,28 @@
+name: tf-deploy
+on:
+  push:
+    branches: [ "master" ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write     # needed for OIDC
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: AWS OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::179072210594:role/GHA_CICD_pipeline
+          aws-region: us-east-1
+
+      - uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform init
+        run: terraform -chdir=infra/s3-bucket init -input=false
+
+      - name: Terraform apply
+        run: terraform -chdir=infra/s3-bucket apply -auto-approve -input=false
