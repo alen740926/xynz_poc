@@ -3,7 +3,7 @@ provider "aws" { region = "us-east-1" }
 # Pick a globally-unique bucket name before running!
 variable "bucket_name" {
   type    = string
-  default = "my-unique-bucket-name-change-me-12345"
+  default = "my-unique-bucket-name-change-me-123456"
 }
 
 resource "aws_s3_bucket" "this" {
