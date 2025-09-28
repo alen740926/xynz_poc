@@ -13,7 +13,7 @@ variable "tenant_id" {
 variable "audience" {
   type        = string
   description = "Expected audience for tokens (e.g., api://<app-id> or the API app's client ID). For multiple, comma-separate."
-  deafult     = "10f78839-7a21-41c7-92f2-a9d8a546f58e"
+  default     = "10f78839-7a21-41c7-92f2-a9d8a546f58e"
 }
 
 variable "create_lambda_permission" {

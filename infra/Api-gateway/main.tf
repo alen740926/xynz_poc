@@ -33,12 +33,14 @@ resource "aws_lambda_function" "authorizer" {
   role             = aws_iam_role.auth_role.arn
   runtime          = "nodejs20.x"
   handler          = "authorizer_handler.handler"
-  filename         = "lambda_authorizer.zip"
-  source_code_hash = filebase64sha256("lambda_authorizer.zip")
+  filename         = "${path.module}/../build/lambda_authorizer.zip"
+  source_code_hash = filebase64sha256("${path.module}/../build/lambda_authorizer.zip")
+
   environment {
     variables = {
-      TENANT_ID = var.tenant_id
-      AUDIENCE  = var.audience     # allow comma-separated list
+      TENANT_ID           = var.tenant_id
+      AUDIENCE            = join(",", var.audiences)
+      ALLOWED_CLIENT_IDS  = join(",", var.allowed_client_ids)
     }
   }
 }
