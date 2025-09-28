@@ -22,7 +22,7 @@ jobs:
       - uses: hashicorp/setup-terraform@v3
 
       - name: Terraform init
-        run: terraform -chdir=infra/s3-bucket init -input=false
+        run: terraform -chdir=infra/Api-gateway init -input=false
 
       - name: Terraform apply
-        run: terraform -chdir=infra/s3-bucket apply -auto-approve -input=false
+        run: terraform -chdir=infra/Api-gateway apply -auto-approve -input=false
