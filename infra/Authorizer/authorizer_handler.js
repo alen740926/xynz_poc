@@ -1,41 +1,55 @@
-// authorizer/authorizer_handler.js
-const { createRemoteJWKSet, jwtVerify } = require("jose");
+import { createRemoteJWKSet, jwtVerify } from "jose";
 
-const tenantId  = process.env.TENANT_ID;                 // e.g., "aaaaaaaa-bbbb-cccc-...."
-const issuer    = `https://login.microsoftonline.com/${tenantId}/v2.0`;
-const jwks      = createRemoteJWKSet(new URL(`https://login.microsoftonline.com/${tenantId}/discovery/v2.0/keys`));
-const audiences = (process.env.AUDIENCE || "").split(",").map(s => s.trim()).filter(Boolean);
-const allowedClients = new Set((process.env.ALLOWED_CLIENT_IDS || "").split(",").filter(Boolean));
+const TENANT_ID = process.env.TENANT_ID; // d1df0ad0-...
+const AUD = process.env.EXPECTED_AUD;    // e.g. "api://10f7...f58e"
+const ISS_V2 = `https://login.microsoftonline.com/${TENANT_ID}/v2.0`;
+const OIDC = `https://login.microsoftonline.com/${TENANT_ID}/v2.0/.well-known/openid-configuration`;
 
-const allow = (arn, sub="aad-user") => ({
-  principalId: sub,
-  policyDocument: { Version:"2012-10-17", Statement:[{ Action:"execute-api:Invoke", Effect:"Allow", Resource: arn }] }
-});
-const deny = (arn) => ({
-  principalId: "anonymous",
-  policyDocument: { Version:"2012-10-17", Statement:[{ Action:"execute-api:Invoke", Effect:"Deny", Resource: arn }] }
-});
+let jwks;
+async function getJwks() {
+  if (!jwks) {
+    // You can hardcode the jwks_uri if you want to avoid fetching OIDC doc.
+    // For brevity we jump straight to the documented JWKS endpoint pattern:
+    const jwksUri = `https://login.microsoftonline.com/${TENANT_ID}/discovery/v2.0/keys`;
+    jwks = createRemoteJWKSet(new URL(jwksUri));
+  }
+  return jwks;
+}
 
-exports.handler = async (event) => {
+export const handler = async (event) => {
   try {
-    const methodArn = event.methodArn;
-    const token = (event.authorizationToken || "").replace(/^Bearer\s+/i, "");
-    const { payload } = await jwtVerify(token, jwks, {
-      issuer,
-      audience: audiences.length > 1 ? audiences : audiences[0]
+    let raw = event.authorizationToken || event.headers?.Authorization || "";
+    raw = Array.isArray(raw) ? raw[0] : raw;
+    let token = String(raw).replace(/^Bearer\s+/i, "").trim();
+    token = token.replace(/[\r\n]/g, "").replace(/^"+|"+$/g, "");
+
+    if (token.split(".").length !== 3) {
+      throw new Error("Not a compact JWS (expect 3 segments)");
+    }
+
+    const jwks = await getJwks();
+    const { payload, protectedHeader } = await jwtVerify(token, jwks, {
+      issuer: ISS_V2,
+      audience: AUD,           // exact match to your API App ID URI
+      algorithms: ["RS256"],
     });
 
-    // Optional client/app whitelist
-    const clientId = payload.appid || payload.azp; // confidential vs public clients
-    if (allowedClients.size && !allowedClients.has(clientId)) return deny(methodArn);
+    // (Optional) role/scope checks here
 
-    // Optional scope/role checks
-    // if (!((payload.scp || "").split(" ").includes("Api.Read"))) return deny(methodArn);
-    // if (!((payload.roles || []).includes("Api.Access"))) return deny(methodArn);
-
-    return allow(methodArn, payload.sub || "aad-user");
-  } catch (e) {
-    console.log("JWT verify failed:", e?.message);
-    return deny(event.methodArn);
+    return generatePolicy("Allow", event.methodArn);
+  } catch (err) {
+    console.error("Auth error:", err.message);
+    return generatePolicy("Deny", event.methodArn);
   }
 };
+
+function generatePolicy(effect, resource) {
+  return {
+    principalId: "user",
+    policyDocument: {
+      Version: "2012-10-17",
+      Statement: [{ Action: "execute-api:Invoke", Effect: effect, Resource: resource }],
+    },
+    context: { reason: effect },
+  };
+}
