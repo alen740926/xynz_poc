@@ -3,6 +3,12 @@ terraform {
   required_providers {
     aws = { source = "hashicorp/aws", version = ">= 5.0" }
   }
+  backend "s3" {
+    bucket         = "my-tf-state-gha-poc"
+    key            = "envs/poc/api-gw/terraform.tfstate"
+    region         = "us-east-1"
+    encrypt        = true
+  }
 }
 
 provider "aws" { region = "us-east-1" }
@@ -15,7 +21,7 @@ data "aws_caller_identity" "me" {}
 # Authorizer Lambda (Node.js)
 ############################
 resource "aws_iam_role" "auth_role" {
-  name               = "rest-aad-authorizer-exec"
+  name               = "rest-aad-authorizer-poc"
   assume_role_policy = jsonencode({
     Version = "2012-10-17",
     Statement = [{ Effect="Allow", Principal={ Service="lambda.amazonaws.com" }, Action="sts:AssumeRole" }]
@@ -29,7 +35,7 @@ resource "aws_iam_role_policy_attachment" "auth_logs" {
 
 # Zip file you build locally: lambda_authorizer.zip (see JS & packaging below)
 resource "aws_lambda_function" "authorizer" {
-  function_name    = "rest-aad-token-authorizer"
+  function_name    = "rest-aad-token-authorizer-poc"
   role             = aws_iam_role.auth_role.arn
   runtime          = "nodejs20.x"
   handler          = "authorizer_handler.handler"
@@ -55,7 +61,7 @@ resource "aws_cloudwatch_log_group" "auth_lg" {
 # REST API (REGIONAL)
 ############################
 resource "aws_api_gateway_rest_api" "api" {
-  name        = "demo-rest-poc"
+  name        = "demo-rest"
   description = "REST API with Lambda proxy and Azure AD JWT Lambda authorizer"
   endpoint_configuration { types = ["REGIONAL"] }
 }
@@ -69,7 +75,7 @@ resource "aws_api_gateway_resource" "random" {
 
 # Lambda TOKEN authorizer (Authorization header -> event.authorizationToken)
 resource "aws_api_gateway_authorizer" "auth" {
-  name                        = "aad-token-authorizer"
+  name                        = "aad-token-authorizer-poc"
   rest_api_id                 = aws_api_gateway_rest_api.api.id
   type                        = "TOKEN"
   authorizer_uri              = "arn:aws:apigateway:${data.aws_region.current.name}:lambda:path/2015-03-31/functions/${aws_lambda_function.authorizer.arn}/invocations"
