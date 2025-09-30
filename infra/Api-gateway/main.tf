@@ -128,7 +128,6 @@ resource "aws_api_gateway_stage" "prod" {
 # Allow API Gateway to call the EXISTING backend Lambda
 resource "aws_lambda_permission" "invoke_backend" {
   count         = var.create_lambda_permission ? 1 : 0
-  statement_id  = "AllowAPIGWInvokeBackend"
   action        = "lambda:InvokeFunction"
   function_name = var.backend_lambda_arn
   principal     = "apigateway.amazonaws.com"
@@ -137,7 +136,6 @@ resource "aws_lambda_permission" "invoke_backend" {
 
 # Allow API Gateway to call the authorizer
 resource "aws_lambda_permission" "invoke_authorizer" {
-  statement_id  = "AllowAPIGWInvokeAuthorizer"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.authorizer.function_name
   principal     = "apigateway.amazonaws.com"
